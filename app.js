@@ -5,6 +5,7 @@ const morgan = require("morgan");
 const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv/config");
+const authJwt = require("./helpers/jwt");
 
 app.use(cors());
 app.options("*", cors());
@@ -15,10 +16,13 @@ const categoryRouter = require("./routers/category");
 const productRouter = require("./routers/product");
 const orderRouter = require("./routers/orders");
 const userRouter = require("./routers/users");
+const errorHandler = require("./helpers/error-handler");
 
 // Midelware
 app.use(bodyParser.json());
 app.use(morgan("tiny"));
+app.use(authJwt());
+app.use(errorHandler);
 
 //Routers
 app.use(`${api}/category`, categoryRouter);
