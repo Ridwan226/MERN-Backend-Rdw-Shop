@@ -3,6 +3,33 @@ const express = require("express");
 const { Category } = require("../models/category");
 const router = express.Router();
 const mongoose = require("mongoose");
+const multer = require("multer");
+
+const FILE_TYPE_MAP = {
+  "image/png": "png",
+  "image/jpeg": "jpeg",
+  "image/jpg": "jpg",
+};
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    const isValid = FILE_TYPE_MAP[file.mimetype];
+    let uploadError = new Error("invalid Image Type");
+
+    if (isValid) {
+      uploadError = null;
+    }
+    cb(null, "public/uploads");
+  },
+  filename: function (req, file, cb) {
+    // file.mimetype
+    const fileName = file.originalname.split(" ").join("-");
+    const extension = FILE_TYPE_MAP[file.mimetype];
+    cb(null, `${fileName}-${Date.now()}.${extension}`);
+  },
+});
+
+const uploadOptions = multer({ storage: storage });
 
 router.get(`/`, async (req, res) => {
   let filter = {};
@@ -34,16 +61,21 @@ router.get(`/:id`, async (req, res) => {
   res.send(product);
 });
 
-router.post(`/`, async (req, res) => {
+router.post(`/`, uploadOptions.single("image"), async (req, res) => {
   const category = await Category.findById(req.body.category);
   if (!category) return res.status(400).send("Invalid Category");
 
+  const file = req.file;
+  if (!file) return res.status(400).send("Tidak Ada Foto di Upload");
+
+  const fileName = req.file.filename;
+  const basePath = `${req.protocol}://${req.get("host")}/public/uploads/`;
   let product = new Product({
     name: req.body.name,
     description: req.body.description,
     richDescription: req.body.richDescription,
-    image: req.body.image,
-    images: req.body.images,
+    image: `${basePath}${fileName}`,
+    // images: req.body.images,
     brand: req.body.brand,
     price: req.body.price,
     category: req.body.category,
@@ -74,7 +106,6 @@ router.put("/:id", async (req, res) => {
       description: req.body.description,
       richDescription: req.body.richDescription,
       image: req.body.image,
-      images: req.body.images,
       brand: req.body.brand,
       price: req.body.price,
       category: req.body.category,
@@ -140,5 +171,38 @@ router.get(`/get/feature/:count`, async (req, res) => {
 
   res.send(productFeature);
 });
+
+router.put(
+  "/galery-images/:id",
+  uploadOptions.array("images", 10),
+  async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      res.status(400).send("Invalid Product Id");
+    }
+    // const fileName = req.file.filename;
+    const files = req.files;
+    let imagesPaths = [];
+    const basePath = `${req.protocol}://${req.get("host")}/public/uploads/`;
+
+    if (files) {
+      files.map((file) => {
+        imagesPaths.push(`${basePath}${file.filename}`);
+      });
+    }
+
+    const product = await Product.findByIdAndUpdate(
+      req.params.id,
+      {
+        images: imagesPaths,
+      },
+      {
+        new: true,
+      }
+    );
+    if (!product) return res.status(500).send("Product Gagal DI buat");
+
+    res.send(product);
+  }
+);
 
 module.exports = router;
